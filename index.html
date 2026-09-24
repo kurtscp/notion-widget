@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Flip Clock (PHT)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: light dark;
+    --card: #000;          /* flip card color */
+    --text: #fff;          /* digit + text color */
+    --dim: #6b6b6b;       /* inactive AM/PM */
+    --font: "Inter", "Roboto", "Helvetica Neue", Arial, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; background: transparent; overflow: hidden; }
+  body { display: flex; align-items: center; justify-content: center; font-family: var(--font); }
+
+  /* 1u scales with the embed size: fits both width and height */
+  .clock { --u: min(100vw / 64, 100vh / 27); width: calc(62 * var(--u)); color: var(--text); }
+  .row { display: flex; align-items: flex-start; gap: calc(1.7 * var(--u)); }
+
+  .card { position: relative; height: calc(16.5 * var(--u)); perspective: calc(50 * var(--u)); }
+  .card.h { width: calc(18.2 * var(--u)); }
+  .card.m { width: calc(19.5 * var(--u)); }
+  .half { position: absolute; left: 0; right: 0; height: 50%; overflow: hidden; background: var(--card); backface-visibility: hidden; }
+  .half.top { top: 0; border-radius: calc(2 * var(--u)) calc(2 * var(--u)) 0 0; transform-origin: bottom; }
+  .half.bottom { bottom: 0; border-radius: 0 0 calc(2 * var(--u)) calc(2 * var(--u)); transform-origin: top; }
+  .half span { position: absolute; left: 0; right: 0; height: 200%; display: flex; align-items: center; justify-content: center;
+    font-size: calc(12.6 * var(--u)); font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+  .half.top span { top: 0; }
+  .half.bottom span { bottom: 0; }
+
+  .flap { display: none; z-index: 3; }
+  .flip .flap { display: block; }
+  .flap.front { animation: front .6s ease-in forwards; }
+  .flap.back { transform: rotateX(90deg); animation: back .6s ease-out forwards; }
+  @keyframes front { 0% { transform: rotateX(0); } 50%, 100% { transform: rotateX(-90deg); } }
+  @keyframes back { 0%, 50% { transform: rotateX(90deg); } 100% { transform: rotateX(0); } }
+
+  /* center hinge line + side notches */
+  .line { position: absolute; left: 0; right: 0; top: 50%; height: calc(.14 * var(--u)); background: rgba(0,0,0,.95); z-index: 5; transform: translateY(-50%); box-shadow: 0 0 0 calc(.04 * var(--u)) rgba(255,255,255,.06); }
+  .notch { position: absolute; top: 50%; width: calc(.9 * var(--u)); height: calc(2.2 * var(--u)); background: #1c1c1c; border-radius: calc(.4 * var(--u)); transform: translateY(-50%); z-index: 6; }
+  .notch.l { left: calc(-.35 * var(--u)); } .notch.r { right: calc(-.35 * var(--u)); }
+
+  .colon { position: absolute; z-index: 7; }
+  .dots { width: calc(1.7 * var(--u)); height: calc(16.5 * var(--u)); display: flex; flex-direction: column; justify-content: center; align-items: center; gap: calc(1.4 * var(--u)); margin: 0 calc(-1.7 * var(--u)); position: relative; z-index: 8; }
+  .dots i { width: calc(1.1 * var(--u)); height: calc(1.1 * var(--u)); border-radius: 50%; background: var(--card); display: block; box-shadow: 0 0 0 calc(.25 * var(--u)) transparent; }
+
+  .side { display: flex; flex-direction: column; gap: calc(.7 * var(--u)); margin-top: calc(.5 * var(--u)); }
+  .tile { background: var(--card); border-radius: calc(1.8 * var(--u)); display: flex; align-items: center; justify-content: center; font-weight: 700; }
+  .ampm { width: calc(9 * var(--u)); height: calc(7.9 * var(--u)); font-size: calc(3.3 * var(--u)); color: var(--dim); transition: color .3s; }
+  .ampm.on { color: var(--text); }
+  .tz { width: calc(10.2 * var(--u)); height: calc(11.2 * var(--u)); margin-top: calc(3.6 * var(--u)); border-radius: calc(2.4 * var(--u)); flex-direction: column; gap: calc(1 * var(--u)); font-size: calc(3.2 * var(--u)); }
+  .tz svg { width: calc(1.9 * var(--u)); height: calc(1.9 * var(--u)); }
+  .aside { display: flex; align-items: flex-start; gap: calc(1.7 * var(--u)); }
+
+  .date { margin-top: calc(1 * var(--u)); height: calc(7.3 * var(--u)); background: var(--card); border-radius: calc(2.4 * var(--u));
+    display: flex; align-items: center; padding: 0 calc(2.6 * var(--u)); font-size: calc(2.75 * var(--u)); font-weight: 600; white-space: nowrap; }
+  .date svg { width: calc(2.9 * var(--u)); height: calc(2.9 * var(--u)); flex: none; }
+  .date .sep { width: calc(.12 * var(--u)); height: calc(3.2 * var(--u)); background: #555; margin: 0 calc(2.4 * var(--u)); flex: none; }
+  .date .full { flex: 1; text-align: center; }
+  .date .short { min-width: calc(4 * var(--u)); text-align: center; }
+
+  @media (prefers-reduced-motion: reduce) { .flap { animation-duration: .01s !important; } }
+</style>
+</head>
+<body>
+<div class="clock" role="timer" aria-label="Current time in the Philippines">
+  <div class="row">
+    <div class="card h" id="hour">
+      <div class="half top"><span></span></div><div class="half bottom"><span></span></div>
+      <div class="half top flap front"><span></span></div><div class="half bottom flap back"><span></span></div>
+      <i class="line"></i><i class="notch l"></i><i class="notch r"></i>
+    </div>
+    <div class="dots"><i></i><i></i></div>
+    <div class="card m" id="min">
+      <div class="half top"><span></span></div><div class="half bottom"><span></span></div>
+      <div class="half top flap front"><span></span></div><div class="half bottom flap back"><span></span></div>
+      <i class="line"></i><i class="notch l"></i><i class="notch r"></i>
+    </div>
+    <div class="aside">
+      <div class="side">
+        <div class="tile ampm" id="am">AM</div>
+        <div class="tile ampm" id="pm">PM</div>
+      </div>
+      <div class="tile tz">PHT
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 9l7 7 7-7"/></svg>
+      </div>
+    </div>
+  </div>
+  <div class="date">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>
+    <span class="sep"></span>
+    <span class="full" id="full"></span>
+    <span class="sep"></span>
+    <span class="short" id="short"></span>
+  </div>
+</div>
+
+<script>
+  const TZ = "Asia/Manila";
+  const PAD_HOUR = false;   // true -> "09", false -> "9"
+
+  const fmt = new Intl.DateTimeFormat("en-US", {
+    timeZone: TZ, hour: "numeric", minute: "2-digit", hour12: true,
+    weekday: "long", month: "long", day: "numeric", year: "numeric"
+  });
+
+  function parts() {
+    const p = {};
+    fmt.formatToParts(new Date()).forEach(x => p[x.type] = x.value);
+    return p;
+  }
+
+  function makeCard(el) {
+    const [top, bottom, fTop, fBottom] = [...el.querySelectorAll(".half span")];
+    let current = null;
+    return function set(val) {
+      if (val === current) return;
+      if (current === null) {
+        top.textContent = bottom.textContent = fTop.textContent = fBottom.textContent = val;
+        current = val; return;
+      }
+      el.classList.remove("flip"); void el.offsetWidth;   // restart animation
+      fTop.textContent = current;   // old value folds down
+      fBottom.textContent = val;    // new value lands
+      top.textContent = val;        // revealed behind the flap
+      el.classList.add("flip");
+      const old = current; current = val;
+      setTimeout(() => {
+        if (current === val) { bottom.textContent = val; el.classList.remove("flip"); }
+      }, 620);
+    };
+  }
+
+  const setHour = makeCard(document.getElementById("hour"));
+  const setMin  = makeCard(document.getElementById("min"));
+
+  function tick() {
+    const p = parts();
+    setHour(PAD_HOUR ? p.hour.padStart(2, "0") : String(parseInt(p.hour, 10)));
+    setMin(p.minute);
+    const isPM = p.dayPeriod.toUpperCase() === "PM";
+    document.getElementById("am").classList.toggle("on", !isPM);
+    document.getElementById("pm").classList.toggle("on", isPM);
+    document.getElementById("full").textContent = `${p.weekday}, ${p.month} ${p.day}, ${p.year}`;
+    document.getElementById("short").textContent = p.weekday.slice(0, 3);
+  }
+  tick();
+  setInterval(tick, 500);
+</script>
+</body>
+</html>
